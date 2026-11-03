@@ -153,7 +153,7 @@ namespace CapriDesktop
 
         internal void KeepCpu()
         {
-            try { if (Directory.Exists(Folder)) File.WriteAllText(CpuMark, "A model reply failed the repetitive/invalid-text check, so automatic fallback selected the CPU. This does not establish a graphics-card fault. Delete this file to try GPU inference again.\n"); }
+            try { if (Directory.Exists(Folder)) File.WriteAllText(CpuMark, "A model reply failed the repetitive/invalid-text check and CPU fallback was selected for that run. This does not establish a graphics-card fault. The desktop applies its CPU-only preference at startup; this marker alone does not establish the next launch's mode.\n"); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
