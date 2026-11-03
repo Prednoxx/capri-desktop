@@ -6002,11 +6002,13 @@ namespace CapriDesktop
             SavePreferences();
         }
 
+        private Func<System.Collections.Generic.List<Ledge>> wanderLedges;
+
         private System.Collections.Generic.List<Ledge> Spots()
         {
             System.Collections.Generic.List<Ledge> spots = new System.Collections.Generic.List<Ledge>();
             int room = Headroom();
-            foreach (Ledge ledge in Around())
+            foreach (Ledge ledge in wanderLedges == null ? Around() : wanderLedges())
             {
                 if (!ledge.Icon.IsEmpty || ledge.Right - ledge.Left < preferences.Size / 2) continue;
                 if (seat != null && ledge.Window == seat.Window && ledge.Floor == seat.Floor) continue;
@@ -6018,7 +6020,7 @@ namespace CapriDesktop
 
         private bool Wander()
         {
-            Rectangle area = WanderArea();
+            Rectangle area = wanderLedges == null ? WanderArea() : Rectangle.Empty;
             if (!area.IsEmpty)
             {
                 Point beside = WanderPoint(area, preferences.Size, random.NextDouble(), random.NextDouble());
@@ -24972,16 +24974,24 @@ namespace CapriDesktop
                                 checks.Add("PASS dancing: she dances on her seat while music plays, stops to talk, stops when it ends, and the menu turns it off; a film in a browser tab isn't music, a song or a lofi radio is, and her dancing and her mini player share one read of what's playing until a press");
                                 instant = false;
                                 Ledge hopFrom = seat;
-                                Wander();
-                                if (outro == null || clip != perchLeave || seat != hopFrom) throw new Exception("A wander hop did not glitch her out first.");
-                                clipStart -= 0.4;
-                                RenderFrame();
-                                outroAt = clock.Elapsed.TotalSeconds - 1;
-                                Tick();
-                                if (outro != null || seat == null || falling || Hip().Y != seat.Y || clip != perchArrive || (seat.Window == hopFrom.Window && seat.Floor == hopFrom.Floor)) throw new Exception("After glitching out she did not glitch in on another window.");
-                                clipStart -= 2;
-                                RenderFrame();
-                                if (clip != perch) throw new Exception("Glitching in did not settle into the seated loop.");
+                                Func<System.Collections.Generic.List<Ledge>> wanderWas = wanderLedges;
+                                try
+                                {
+                                    Rectangle hopArea = Screen.FromControl(shelf).WorkingArea;
+                                    Ledge hopTarget = new Ledge { Left = hopArea.Left, Right = hopArea.Right, Y = hopArea.Bottom, Floor = true };
+                                    wanderLedges = delegate { return new System.Collections.Generic.List<Ledge> { hopTarget }; };
+                                    Wander();
+                                    if (outro == null || clip != perchLeave || seat != hopFrom) throw new Exception("A wander hop did not glitch her out first.");
+                                    clipStart -= 0.4;
+                                    RenderFrame();
+                                    outroAt = clock.Elapsed.TotalSeconds - 1;
+                                    Tick();
+                                    if (outro != null || seat != hopTarget || falling || Hip().Y != seat.Y || clip != perchArrive) throw new Exception("After glitching out she did not glitch in on the target ledge.");
+                                    clipStart -= 2;
+                                    RenderFrame();
+                                    if (clip != perch) throw new Exception("Glitching in did not settle into the seated loop.");
+                                }
+                                finally { wanderLedges = wanderWas; }
                                 SetHidden(true);
                                 if (hidden || !Visible || outro == null || clip != perchLeave) throw new Exception("Hiding did not glitch her out first.");
                                 outroAt = clock.Elapsed.TotalSeconds - 1;

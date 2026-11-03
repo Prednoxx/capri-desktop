@@ -21,6 +21,8 @@ The full suite passed from a short scratch path. Earlier runs in the long checko
 
 The mini-board monitor-positioning failure was reproduced in the untouched upstream build before fixing the deferred rescale.
 
+The November 3 follow-up makes the wander transition fixture use a controlled desktop ledge. It previously picked a random live window, which could disappear while the leave animation played. The fixture still checks the leave, arrival and seated-loop transitions. Normal wandering continues to read the real desktop; the override is restored after the check.
+
 Mac and Linux were not built locally because the .NET 10 SDK is not installed. The desktop automation changes are Windows-specific.
 
 See [task execution changes](task-execution.md) for commands, implementation details and limits.
