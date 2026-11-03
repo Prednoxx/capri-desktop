@@ -4,14 +4,16 @@
 
 # Capri
 
+This fork fixes repeated desktop tasks, adds retry limits and keeps completed jobs from starting again. It also updates her preset lines. [Changes and tests](docs/task-execution.md).
+
 **Bring Capri (back lol) to life as a desktop companion!**<br>
 She sits on your windows, talks back, plays your games and gets into everything.
 
-<a href="https://github.com/lachydotmcg/capri-desktop/releases/latest/download/Capri-Setup.exe"><img src="https://img.shields.io/badge/Download%20for%20Windows-ff2a6d?style=for-the-badge" alt="Download for Windows"></a>
+<a href="https://github.com/Prednoxx/capri-desktop/releases/latest/download/Capri-Setup.exe"><img src="https://img.shields.io/badge/Download%20for%20Windows-ff2a6d?style=for-the-badge" alt="Download for Windows"></a>
 <a href="#mac-and-linux-early-preview"><img src="https://img.shields.io/badge/Mac%20and%20Linux-1b1d21?style=for-the-badge" alt="Mac and Linux"></a>
 
-<a href="https://github.com/lachydotmcg/capri-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/lachydotmcg/capri-desktop?label=latest&color=05d9e8&style=flat-square" alt="Latest release"></a>
-<a href="https://github.com/lachydotmcg/capri-desktop/releases"><img src="https://img.shields.io/github/downloads/lachydotmcg/capri-desktop/total?color=05d9e8&style=flat-square" alt="Downloads"></a>
+<a href="https://github.com/Prednoxx/capri-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/Prednoxx/capri-desktop?label=latest&color=05d9e8&style=flat-square" alt="Latest release"></a>
+<a href="https://github.com/Prednoxx/capri-desktop/releases"><img src="https://img.shields.io/github/downloads/Prednoxx/capri-desktop/total?color=05d9e8&style=flat-square" alt="Downloads"></a>
 <a href="https://discord.gg/F4fDHfGtFk"><img src="https://img.shields.io/badge/Discord-join%20us-5865F2?logo=discord&logoColor=white&style=flat-square" alt="Discord"></a>
 
 [Setup guide](https://capriai.app/setup/) · [Website](https://capriai.app/) · [Help](https://capriai.app/help/) · [Support](#support)
@@ -64,7 +66,7 @@ Beware that Capri may try to take over your human CPU. We take no responsibility
 
 ## Getting started
 
-1. Download **[Capri-Setup.exe](https://github.com/lachydotmcg/capri-desktop/releases/latest/download/Capri-Setup.exe)** and run it
+1. Download **[Capri-Setup.exe](https://github.com/Prednoxx/capri-desktop/releases/latest/download/Capri-Setup.exe)** and run it
 2. In the Capri Mainframe, press **Set up her brain**, or press **Free key** to use a free NVIDIA key
 3. Optional: pick another voice under **VOICE** (see [Her voice](#her-voice))
 

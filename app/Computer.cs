@@ -75,6 +75,9 @@ namespace CapriDesktop
         internal int Failed;
         internal double Seconds;
         internal bool Playing;
+        internal string Outcome;
+        internal int Turns;
+        internal int Blocked;
         internal readonly List<string> Recent = new List<string>();
     }
 
@@ -457,6 +460,13 @@ namespace CapriDesktop
             tool = null;
             args = null;
             string visible = Brain.Visible(reply ?? "");
+            string finished;
+            if (FinishedReply(visible, out finished))
+            {
+                tool = "done";
+                args = new ToolArguments { Text = finished.Length > 0 ? finished : "done" };
+                return true;
+            }
             // gemma sometimes writes just "click 4".
             Match bare = BareClick.Match(visible);
             if (bare.Success)
@@ -492,6 +502,7 @@ namespace CapriDesktop
             if (steps.Count > 0)
             {
                 int from = Math.Max(0, steps.Count - 6);
+                text.Append(History(steps, 6));
                 text.Append("\nAlready done, don't repeat these unless the job says to" + (from > 0 ? " (the last 6 of " + steps.Count + ")" : "") + ":");
                 for (int i = from; i < steps.Count; i++) text.Append("\n" + (i + 1) + ". " + steps[i]);
             }
@@ -506,7 +517,7 @@ namespace CapriDesktop
             if (sight != null && wayOut == null && closer == null) foreach (Target found in sight.Targets) if (DetailsForm(sight, found, job) && string.IsNullOrEmpty(found.Value)) details.Add(found.Label);
             // One email box is often a newsletter in the footer; a form that wants a name and an email is the job.
             if (details.Count > 1) text.Append("\nThis form asks for someone's details (" + string.Join(", ", details.ToArray()) + "). Type only names, emails and numbers from their job or your notes. If the job doesn't give them, call ask for the missing details. Never make one up.");
-            text.Append("\n\nScreen now:\n" + sight.Text + "\n\nWhat's the next step? Call one tool.");
+            text.Append("\n\nScreen now:\n" + (sight == null ? "No screen could be read." : sight.Text) + "\n\nCheck the job's result first. If it is finished, call done. Otherwise call one tool for the next unfinished step.");
             return text.ToString();
         }
 
@@ -2242,7 +2253,7 @@ namespace CapriDesktop
         internal void Own(uint at) { ownAt = at; owned = true; }
     }
 
-    internal sealed class Job
+    internal sealed partial class Job
     {
         internal Func<string, string, List<KeyValuePair<string, ToolArguments>>, string> Think;
         internal Action<string> Progress;
@@ -2479,6 +2490,7 @@ namespace CapriDesktop
                 if (heard.Count == 0) return null;
                 string said = string.Join(", then ", heard.ConvertAll(line => Voice.Quote(line)).ToArray());
                 heard.Clear();
+                guard.Redirect();
                 return said;
             }
         }
@@ -2521,6 +2533,7 @@ namespace CapriDesktop
                 if (changes.Count == 0) return "";
                 string said = string.Join(", then ", changes.ConvertAll(line => Voice.Quote(line)).ToArray());
                 changes.Clear();
+                guard.Redirect();
                 return "\nThey just changed their job: " + said + ". That wins over anything in their job it contradicts, so follow it from here and don't go back to what it replaced.";
             }
         }
@@ -2528,7 +2541,7 @@ namespace CapriDesktop
         // What it's done so far, safe to read while it runs.
         internal JobReport Report()
         {
-            JobReport report = new JobReport { Words = Words, Playing = Playing, Seconds = clock.Elapsed.TotalSeconds };
+            JobReport report = new JobReport { Words = Words, Playing = Playing, Seconds = clock.Elapsed.TotalSeconds, Outcome = Outcome, Turns = guard.Turns, Blocked = guard.Blocked };
             lock (ledger)
             {
                 report.Doing = underway ?? busied;
@@ -2560,8 +2573,12 @@ namespace CapriDesktop
         // A brain error partway through, like a rate limit mid-drag, still lets go of the mouse and hands it back.
         internal string Run()
         {
-            try { return Running(); }
-            catch { Computer.Finish(); Show(null); throw; }
+            lock (execution)
+            {
+                if (terminal) return ended;
+                try { return Running(); }
+                catch { End("failed", "My brain stopped before I could verify the job finished."); throw; }
+            }
         }
 
         private string Running()
@@ -2584,10 +2601,10 @@ namespace CapriDesktop
                 Perform(waiting.Key, waiting.Value, WaitingSight);
                 if (Computer.Interrupted) return End("stopped", Computer.Why);
             }
-            // No step limit: bigger brains can work for hours, and Esc stops her.
             while (true)
             {
                 if (Computer.Interrupted) return End("stopped", Computer.Why);
+                if (!NextTurn()) return End("failed", JobGuard.Stopped);
                 Show("Looking at the screen");
                 Sight sight = Computer.Look();
                 if (sight == null && Ink.ScreenRequest(Task)) sight = new Sight();
@@ -2597,6 +2614,7 @@ namespace CapriDesktop
                 Action<Sight> seen = Seen;
                 if (seen != null) seen(sight);
                 string print = Computer.Print(sight);
+                guard.Observe(print);
                 string glance = Computer.Glance(sight);
                 bool moved = glanced != null && glanced.Length > 0 && glance != glanced;
                 if (moved) earlier = glanced;
@@ -2617,7 +2635,6 @@ namespace CapriDesktop
                 else if (moved && lastTool != null && sight != null && !sight.Targets.Exists(found => found.Line && !found.Secret && string.IsNullOrEmpty(found.Value)))
                     nudge += "\nYour last step changed the screen. Check it against their job: if the job is done, call done now, and don't open anything they didn't ask for.";
                 lastTool = null;
-                // No cap here: a screen that won't change gets a nudge every step, and Esc is their stop.
                 if (still >= Computer.Unmoved) nudge += "\nThe screen hasn't changed after your last " + still + " steps. If it already shows the job is done, call done. If not, something may be in the way, like a popup, or the step didn't work: try another way, like closing the popup, a different button, a keyboard shortcut or scrolling.";
                 List<KeyValuePair<string, ToolArguments>> calls = new List<KeyValuePair<string, ToolArguments>>();
                 string written;
@@ -2639,7 +2656,7 @@ namespace CapriDesktop
                 else if (!Computer.Written(written, out tool, out args))
                 {
                     string plain = Clean(Brain.Visible(written), "");
-                    if (Steps.Count > 0 && Regex.IsMatch(plain, @"^[`'""\s]*(done|finished|complete|completed|all done|task (is )?(done|complete))\b[.!`'""\s]*$", RegexOptions.IgnoreCase)) return End("done", Summary());
+                    if (Steps.Count > 0 && Regex.IsMatch(plain, @"^[`'""\s]*(all done|task (is )?(done|complete))\b[.!`'""\s]*$", RegexOptions.IgnoreCase)) return End("done", Summary());
                     if (++lost >= 2) return End("failed", Steps.Count == 0 ? Computer.Confused : "Got lost partway through that. " + Computer.Bigger);
                     continue;
                 }
@@ -2662,7 +2679,7 @@ namespace CapriDesktop
                     if (guesses > 0 && sight != null && sight.Targets.Exists(found => Computer.DetailsForm(sight, found, Task) && string.IsNullOrEmpty(found.Value))) return End("asked", Computer.NeedsDetails(sight));
                     // A job that stops at a card form hands it to them, and a claim that it was paid never reaches them.
                     if (!Security.On(Security.Secrets) && Computer.PaymentPage(sight) && !Paid())
-                        return End("done", Computer.ClaimsPaid(said) || Computer.AsksForCard(said) || Regex.IsMatch(args.Text ?? "", @"^\W*(done)?\W*$", RegexOptions.IgnoreCase) ? Computer.PayYourself : said.TrimEnd() + (Regex.IsMatch(said, @"[.!?]\s*$") ? " " : ". ") + Computer.PayYourself);
+                        return End("asked", Computer.ClaimsPaid(said) || Computer.AsksForCard(said) || Regex.IsMatch(args.Text ?? "", @"^\W*(done)?\W*$", RegexOptions.IgnoreCase) ? Computer.PayYourself : said.TrimEnd() + (Regex.IsMatch(said, @"[.!?]\s*$") ? " " : ". ") + Computer.PayYourself);
                     string trouble = doubted || Steps.Count == 0 || Computer.Troubled(said) ? null : Computer.Trouble(sight, firstWords);
                     if (trouble != null)
                     {
@@ -2715,6 +2732,7 @@ namespace CapriDesktop
             while (true)
             {
                 if (Computer.Interrupted) return End("stopped", Computer.Why);
+                if (!NextTurn()) return End("failed", JobGuard.Stopped);
                 turns++;
                 Show("Thinking");
                 // What they just said rides on the last turn, after its tool results. A turn that's resuming goes back exactly as it
@@ -2894,6 +2912,7 @@ namespace CapriDesktop
             while (true)
             {
                 if (Computer.Interrupted) return End("stopped", Computer.Why);
+                if (!NextTurn()) return End("failed", JobGuard.Stopped);
                 turns++;
                 byte[] lastLook = shown == null ? null : shown.Jpeg;
                 pictures.Clear();
@@ -2944,7 +2963,13 @@ namespace CapriDesktop
                 lastMoves = reply;
                 if (moves.Count == 0)
                 {
-                    if (++lost >= 3) return Steps.Count > 0 ? End("done", Summary()) : End("failed", Computer.Confused);
+                    string finished;
+                    if (Computer.FinishedReply(reply, out finished) && !Computer.Streaming)
+                    {
+                        string said = finished.Length > 0 ? Clean(finished, Summary()) : Summary();
+                        if (!Hitched(said)) return End("done", said);
+                    }
+                    if (++lost >= 3) return End("failed", Steps.Count > 0 ? "I ran some steps, but couldn't verify the job finished." : Computer.Confused);
                     results = "\nYour last reply had no moves. Reply with only your moves, one per line, like the ones you were shown.";
                     continue;
                 }
@@ -2997,6 +3022,7 @@ namespace CapriDesktop
                     results += "\n" + move.Key + ": " + result;
                     if (Computer.Interrupted) return End("stopped", Computer.Why);
                     if (Computer.Failed(result)) break;
+                    if (Bounded) break;
                 }
                 if (results.Length > 0 && !results.StartsWith("\nYou asked", StringComparison.Ordinal)) results = "\nWhat your last moves did:" + results;
                 results += repeated;
@@ -3128,6 +3154,7 @@ namespace CapriDesktop
             if (seen != null) seen(Computer.Glimpse());
             if (fresh == null) return false;
             shown = fresh;
+            Observed(fresh);
             Computer.Shown = fresh;
             newest = fresh.Jpeg;
             pictures.Add(fresh.Jpeg);
@@ -3224,6 +3251,8 @@ namespace CapriDesktop
 
         private string Step(string name, ToolArguments args, bool member, Target target)
         {
+            string action = Guarded(name, args, Computer.Glimpse());
+            if (Bounded && action == null) return JobGuard.Repeated;
             if (name == "draw") args.Drawing = shown;
             if (name == "say")
             {
@@ -3245,6 +3274,7 @@ namespace CapriDesktop
             if (secret) result = Hush(result, args.Text);
             if (Playing && !secret) played.Add(name + " " + Computer.Traced(args) + ": " + result);
             bool failed = Computer.Failed(result) || Computer.Interrupted;
+            if (!failed && Brain.OpensOnce(name)) guard.Opened(action);
             string done = member ? Computer.Moving(name, masked, target, true) : Computer.Did(name, masked, null);
             if (doing != null)
             {
@@ -3272,11 +3302,21 @@ namespace CapriDesktop
 
         private string End(string outcome, string said)
         {
+            if (terminal) return ended;
+            JobReport report = Report();
+            if (Bounded && outcome == "done" && report.Done == 0 && report.Failed > 0)
+            {
+                outcome = "failed";
+                if (Regex.IsMatch(said ?? "", @"\b(didn['’]t|did not)\b", RegexOptions.IgnoreCase)) said = Regex.Replace(said, @"^Done\.\s*", "", RegexOptions.IgnoreCase);
+                else if (!Computer.Troubled(said)) said = "None of the task's steps worked. I couldn't verify it finished.";
+            }
             Outcome = outcome;
+            ended = Computer.Mask(said);
+            terminal = outcome != "waiting";
             Computer.Finish();
             Show(null);
             Reflect(outcome, said);
-            return Computer.Mask(said);
+            return ended;
         }
 
         // What a step into a password box says, with dots where the password was.
@@ -3303,9 +3343,10 @@ namespace CapriDesktop
             }
             Computer.KeysOk = approved.Contains("keys");
             if (tool == "type") args.Text = Filled(Computer.Unechoed(args.Text, Task.IndexOf(Computer.Exact, StringComparison.Ordinal) >= 0 ? Words : null));
-            // The window in front changed after she looked, so she looks again instead of acting on old buttons. Only Esc stops her.
             if (tool != "find_file" && tool != "open_app" && tool != "open_website" && tool != "wait" && tool != "wait_for" && tool != "note" && sight != null && sight.Window != IntPtr.Zero && Computer.Front() != sight.Window)
                 return "Couldn't do that: the window in front changed.";
+            string action = Guarded(tool, args, sight);
+            if (Bounded && action == null) return JobGuard.Repeated;
             bool secret = tool == "type" && Computer.Secret(args, sight);
             if (secret) Computer.Keep(args.Text);
             ToolArguments masked = secret ? Computer.Masked(args) : args;
@@ -3333,6 +3374,7 @@ namespace CapriDesktop
             if (secret) result = Hush(result, args.Text);
             Steps.Add(Computer.Describe(tool, masked, sight) + ": " + result);
             bool failed = Computer.Failed(result) || Computer.Interrupted;
+            if (!failed && Brain.OpensOnce(tool)) guard.Opened(action);
             Mark(new JobStep { Tool = tool, Label = failed ? Clean(result, "That didn't work.").TrimEnd('.') : Computer.Did(tool, masked, sight), Finished = true, Failed = failed });
             return result;
         }

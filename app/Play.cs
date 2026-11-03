@@ -498,6 +498,7 @@ namespace CapriDesktop
             if (steps.Count > 0)
             {
                 int from = Math.Max(0, steps.Count - 8);
+                text.Append(History(steps, 8));
                 text.Append("\nDone so far" + (from > 0 ? " (the last 8 of " + steps.Count + ")" : "") + ":");
                 for (int i = from; i < steps.Count; i++) text.Append("\n" + (i + 1) + ". " + steps[i]);
             }

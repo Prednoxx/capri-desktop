@@ -400,7 +400,8 @@ namespace CapriDesktop
         protected override void OnLocationChanged(EventArgs e)
         {
             base.OnLocationChanged(e);
-            if (IsHandleCreated) Rescale(Dpi());
+            if (IsHandleCreated && !placing && Visible && !IsDisposed)
+                BeginInvoke(new Action(delegate { if (!IsDisposed) Rescale(Dpi()); }));
         }
 
         protected override void WndProc(ref Message message)

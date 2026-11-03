@@ -2600,7 +2600,7 @@ namespace CapriDesktop
                 return Complete(local.Address, model, messages, tools, calls, parts, limit, ticket, routing, openAiTools, job);
             }
             string thinking = Ollama + "|" + model;
-            ChatRequest asking = new ChatRequest { Model = model, Messages = messages.ToArray(), Think = false, Options = new ChatOptions { Limit = ReplyLimit(thinker == thinking ? limit + 2048 : limit, job || routing), Context = Window, Gpu = ollamaCpu == model ? (int?)0 : null } };
+            ChatRequest asking = new ChatRequest { Model = model, Messages = messages.ToArray(), Think = false, Options = new ChatOptions { Temperature = job || routing ? 0.2 : 0.85, Limit = ReplyLimit(thinker == thinking ? limit + 2048 : limit, job || routing), Context = Window, Gpu = ollamaCpu == model ? (int?)0 : null } };
             ChatReply chat = Send<ChatReply>(Ollama + "/api/chat", asking, 180000, listed, null, null, ticket);
             if (chat.Error != null) throw new BrainException(chat.Error);
             if (thinker != thinking && ReplyLimit(limit + 2048, job || routing) > asking.Options.Limit && chat.Stopped == "length" && chat.Message != null && (!string.IsNullOrEmpty(chat.Message.Thinking) || (chat.Message.Content ?? "").IndexOf("<think>", StringComparison.OrdinalIgnoreCase) >= 0))
@@ -2674,7 +2674,7 @@ namespace CapriDesktop
         {
             string thinking = address + "|" + model;
             string listed = tools ? openAiTools ?? Hands.Tools : null;
-            CompletionRequest asking = new CompletionRequest { Messages = messages.ToArray(), Limit = ReplyLimit(thinker == thinking ? limit + 2048 : limit, job || routing) };
+            CompletionRequest asking = new CompletionRequest { Messages = messages.ToArray(), Temperature = job || routing ? 0.2 : 0.85, Limit = ReplyLimit(thinker == thinking ? limit + 2048 : limit, job || routing) };
             if (named != null) asking.Model = named;
             CompletionReply reply = Send<CompletionReply>(address + "/v1/chat/completions", asking, 180000, listed, null, parts, ticket);
             CompletionChoice choice = reply.Choices != null && reply.Choices.Length > 0 ? reply.Choices[0] : null;
@@ -4025,11 +4025,11 @@ namespace CapriDesktop
     // Mac and Linux.
     internal static class Lines
     {
-        internal static readonly string[] OnIt = { "On it. Esc stops me.", "Hands on. Esc if you change your mind.", "Mine now. Esc pulls me off.", "Okay, driving. Esc to bail.", "Watch this. Esc if I get weird.", "Going in. Esc stops me any time.", "Leave it with me. Esc if it goes sideways.", "Say less. Esc takes it back." };
-        internal static readonly string[] GotIt = { "Got it.", "Yep.", "Heard you.", "Sure, folding that in.", "Okay, adding that.", "Mm-hm, on the list.", "Noted.", "Yeah, I can do that too." };
-        internal static readonly string[] Changed = { "Okay, changing course.", "Switching it up.", "Sure, new plan.", "Yep, doing it that way.", "Fine, your way.", "Got it, scrapping that bit." };
-        internal static readonly string[] Stopped = { "Stopped.", "Okay, hands off.", "Dropped it.", "Done, I've let go.", "Fine, leaving it there.", "Stopped where I was." };
-        internal static readonly string[] Busy = { "Hands are full, tell me again in a sec.", "Hang on, finishing this bit first.", "Missed that, I'm mid-click. Say it again?", "One sec, brain's on the job." };
+        internal static readonly string[] OnIt = { "My turn. Esc stops me.", "Okay, hands on. Esc takes it back.", "Let me at it. Esc if you need me off.", "On it, choom. Esc stops me.", "Watch the cursor. Esc pulls me off.", "Going in. Esc if it gets weird.", "I've got the next step. Esc stops me.", "All right, driving. Esc to bail." };
+        internal static readonly string[] GotIt = { "Got it.", "Yeah, heard you.", "Okay, adding that.", "Mm-hm. Keeping that in mind.", "Gotcha, choom.", "On the list.", "Yep, that too.", "Heard. One thing at a time." };
+        internal static readonly string[] Changed = { "Okay, new direction.", "Switching tracks.", "Got it. Leaving that bit behind.", "Your way, then.", "Right, changing that.", "New plan. I'm with you." };
+        internal static readonly string[] Stopped = { "Hands off. Your desk.", "Stopped right here.", "Okay, letting go.", "Cursor's yours.", "Leaving it there, choom.", "Stopped. No more clicks." };
+        internal static readonly string[] Busy = { "One job at a time, choom. Give me a sec.", "Hang on, I'm mid-click.", "Hands are full for a second.", "Still on this step. Esc pulls me off." };
         private static readonly Dictionary<string[], List<string>> said = new Dictionary<string[], List<string>>();
         private static readonly Random Dice = new Random();
 

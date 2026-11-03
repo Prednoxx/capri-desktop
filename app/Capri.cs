@@ -875,7 +875,7 @@ namespace CapriDesktop
             Uri uri;
             if (!Uri.TryCreate(address, UriKind.Absolute, out uri) || uri.UserInfo.Length != 0 || uri.Fragment.Length != 0) throw new BrainException("The update download address is invalid.");
             if (local && uri.IsLoopback && uri.Scheme == Uri.UriSchemeHttp) return uri;
-            if (uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || uri.Host != "github.com" || !uri.AbsolutePath.StartsWith("/lachydotmcg/capri-desktop/releases/download/", StringComparison.Ordinal)) throw new BrainException("The update download address is invalid.");
+            if (uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || uri.Host != "github.com" || !uri.AbsolutePath.StartsWith("/" + Companion.ReleaseRepository + "/releases/download/", StringComparison.Ordinal)) throw new BrainException("The update download address is invalid.");
             return uri;
         }
 
@@ -1602,7 +1602,7 @@ namespace CapriDesktop
         internal static Func<string, bool?> MicMuted = Mics.Muted;
         // The Bluetooth headset's name when the mic she'd listen with is one. Her smoke test swaps it.
         internal static Func<string, string> HandsFreeMic = Ears.HandsFree;
-        private static readonly string[] WakeLines = { "I'm here.", "Yeah, choom?", "Listening.", "Right here.", "Go on, I'm listening.", "You rang?", "Yeah?", "Mm?", "What's up?", "Talk to me." };
+        private static readonly string[] WakeLines = { "There you are.", "Yeah, choom?", "I'm listening.", "Right here.", "Go on, I heard you.", "You rang?", "Yeah?", "Mm?", "Got my attention.", "Talk to me." };
         private readonly Presence presence;
         private bool settingUpEars, settingUpHd, wakingHd, hdTest;
         // A voice check she says once her HD voice wakes, in place of her usual one.
@@ -2540,10 +2540,12 @@ namespace CapriDesktop
             });
         }
 
+        internal const string ReleaseRepository = "Prednoxx/capri-desktop";
+
         internal static Release FetchLatestRelease()
         {
             ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://api.github.com/repos/lachydotmcg/capri-desktop/releases/latest");
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://api.github.com/repos/" + ReleaseRepository + "/releases/latest");
             request.UserAgent = "Capri-Desktop";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 10000;
@@ -7787,6 +7789,7 @@ namespace CapriDesktop
             if (InvokeRequired) Invoke(new Action(StopExplore)); else StopExplore();
             running.Think = delegate(string system, string user, System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, ToolArguments>> calls) { return brain.Step(system, user, Computer.Tools, Computer.ClaudeTools, Computer.Listing, calls); };
             Cloud driver = brain.Remote;
+            running.TurnBudget = driver != null && driver.Kind != "local" ? 600 : JobGuard.TurnLimit;
             // A game job thinks harder on every turn, on her fast hands unless they've turned those off.
             running.Drive = brain.Drives && driver.Model != blindModel ? new Func<string, string, string, ClaudeReply>(delegate(string system, string tools, string messages) { return brain.Drive(system, tools, messages, running.Playing, running.Playing && !preferences.SlowHands); }) : null;
             running.Advised = delegate { return !preferences.SlowHands && brain.Advises; };
@@ -20234,6 +20237,7 @@ namespace CapriDesktop
                 int turn = 0, longest = 0;
                 string note = null, asked = null;
                 Job job = new Job("sort out a very long list");
+                job.TurnBudget = 240;
                 int folded = 0;
                 job.Aside = delegate(string system, string user) { asked = user; return ++folded == 1 ? "Done the first half, carry on from line 50." : ""; };
                 job.Drive = delegate(string system, string tools, string messages)
@@ -20244,7 +20248,7 @@ namespace CapriDesktop
                     if (turn > Computer.LongTalk / 2 && (!messages.Contains("use the blue column") || !messages.Contains("keep the headings"))) throw new Exception("Folding lost their new instructions.");
                     if (messages.IndexOf("carry on from line 50", StringComparison.Ordinal) >= 0) note = messages;
                     if (turn > Computer.LongTalk) return Brain.Parsed("{\"stop_reason\":\"end_turn\",\"content\":[{\"type\":\"text\",\"text\":\"All sorted.\"}]}");
-                    return Brain.Parsed("{\"stop_reason\":\"tool_use\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t" + turn + "\",\"name\":\"left_click\",\"toolset_name\":\"computer\",\"input\":{\"coordinate\":[5,5]}}]}");
+                    return Brain.Parsed("{\"stop_reason\":\"tool_use\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t" + turn + "\",\"name\":\"left_click\",\"toolset_name\":\"computer\",\"input\":{\"coordinate\":[" + (5 + turn) + ",5]}}]}");
                 };
                 string ended = job.Run();
                 if (ended != "All sorted." || note == null || asked == null || asked.IndexOf("sort out a very long list", StringComparison.Ordinal) < 0 || longest > Computer.LongTalk / 2 + 1) throw new Exception("A long job didn't fold: " + ended + " at " + longest + " turns.");
@@ -23777,6 +23781,7 @@ namespace CapriDesktop
             Section(checks, "SmokePlannerChecks", delegate { SmokePlannerChecks(checks); });
             Section(checks, "SmokeOwnSettings", delegate { SmokeOwnSettings(checks); });
             Section(checks, "SmokeWindowTool", delegate { SmokeWindowTool(checks); });
+            Section(checks, "SmokeJobSafety", delegate { SmokeJobSafety(checks); });
             Section(checks, "SmokeWindowReal", delegate { SmokeWindowReal(checks); });
             Section(checks, "SmokeSettingsTool", delegate { SmokeSettingsTool(checks); });
             Section(checks, "SmokeOwnSliders", delegate { SmokeOwnSliders(checks); });
@@ -27291,12 +27296,15 @@ namespace CapriDesktop
                                     Computer.Front = delegate { return new IntPtr(7); };
                                     int longSteps = 0;
                                     Job longJob = new Job("scroll through the whole feed");
+                                    Computer.Look = delegate { shopSight.Title = "Shop page " + jobActs.Count; return shopSight; };
                                     longJob.Think = delegate(string system, string user, System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, ToolArguments>> calls) { return ++longSteps <= 40 ? "scroll{\"direction\": \"down\"}" : "done{\"text\": \"Scrolled through all of it.\"}"; };
                                     string longRun = longJob.Run();
                                     if (longRun != "Scrolled through all of it." || longJob.Outcome != "done" || jobActs.Count != 44 || longJob.Steps.Count != 40) throw new Exception("A long job was cut short: " + longRun + " after " + (jobActs.Count - 4) + " steps");
                                     jobActs.RemoveRange(4, 40);
+                                    Computer.Look = delegate { return shopSight; };
+                                    shopSight.Title = "Shop";
                                     Computer.Front = delegate { return new IntPtr(8); };
-                                    checks.Add("PASS no step limit: a 40-step job runs to the end, and failed steps never make her give up by herself; only done or Esc ends a job");
+                                    checks.Add("PASS forward progress: a 40-step job with changing pages runs to completion within its turn budget");
                                     if (Computer.Risk("type", new ToolArguments { Target = "1", Text = "hi", Enter = "yes" }, new Sight { Window = new IntPtr(7), Title = "#general - Discord", Program = "Discord" }) != "send") throw new Exception("Enter in a chat app was not treated as sending.");
                                     if (!Computer.Allowed("write a message to Sam on Discord saying hi").Contains("send") || !Computer.Allowed("type capri was here in discord").Contains("send") || !Computer.Allowed("type hi in discord and send it").Contains("send") || !Computer.Allowed("send Sam a message saying hi").Contains("send") || !Computer.Allowed("message Sam hi on discord").Contains("send") || Computer.Allowed("draft a reply to Sam in discord").Contains("send") || Computer.Allowed("type hi in discord but don't send it").Contains("send")) throw new Exception("Write and send requests were read wrong.");
                                     Sight chatSight = new Sight { Window = new IntPtr(7), Title = "#general - Discord", Program = "Discord" };
@@ -27638,9 +27646,9 @@ namespace CapriDesktop
                                     int stuckLine = 0;
                                     stuck.Think = delegate(string system, string user, System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, ToolArguments>> calls) { stuckBriefs.Add(user); return stuckLine++ < 6 ? "click{\"target\": \"1\"}" : "done{\"text\": \"The Load more button does nothing.\"}"; };
                                     string stuckRun = stuck.Run();
-                                    if (stuckRun != "The Load more button does nothing." || stuck.Outcome != "done" || stuckClicks != 6 || stuckBriefs.Count != 7 || stuckBriefs[1].IndexOf("hasn't changed", StringComparison.Ordinal) >= 0
-                                        || stuckBriefs[2].IndexOf("The screen hasn't changed after your last 2 steps.", StringComparison.Ordinal) < 0 || stuckBriefs[6].IndexOf("The screen hasn't changed after your last 6 steps.", StringComparison.Ordinal) < 0)
-                                        throw new Exception("A job whose screen didn't change was cut short or never nudged: " + stuckRun + " / " + stuckClicks + " clicks / " + stuckBriefs.Count + " briefs");
+                                    if (stuckRun != JobGuard.Stopped || stuck.Outcome != "failed" || stuckClicks != 2 || stuckBriefs.Count != 5 || stuck.Report().Blocked != 3 || stuckBriefs[1].IndexOf("hasn't changed", StringComparison.Ordinal) >= 0
+                                        || stuckBriefs[2].IndexOf("The screen hasn't changed after your last 2 steps.", StringComparison.Ordinal) < 0)
+                                        throw new Exception("A job repeated an unchanged screen or lost its recovery hint: " + stuckRun + " / " + stuckClicks + " clicks / " + stuckBriefs.Count + " briefs");
                                     int moved = 0;
                                     Computer.Look = delegate { stuckSight.Targets[0].Name = "Load more (" + moved + " loaded)"; return stuckSight; };
                                     Computer.Act = delegate(string name, ToolArguments a, Sight s) { moved++; return "Did it."; };
@@ -27771,7 +27779,7 @@ namespace CapriDesktop
                                     string typedBrief = Computer.Brief("search the shop for blue hoodies", new System.Collections.Generic.List<string>(), searchSight);
                                     if (searchBrief.IndexOf("To search, type into [2] box \"Search the shop\" with enter yes.", StringComparison.Ordinal) < 0 || openBrief.IndexOf("To search", StringComparison.Ordinal) >= 0 || typedBrief.IndexOf("To search", StringComparison.Ordinal) >= 0)
                                         throw new Exception("A search box hint went wrong: " + searchBrief);
-                                    if (cartActs != 0 || cartRun != "Done. I didn't add anything to your cart." || claimRun != "Done. Clicked link \"Blue hoodie\". I didn't add anything to your cart." || addRun != "I added the blue hoodie to the cart.")
+                                    if (cartActs != 0 || cartRun != "I didn't add anything to your cart." || carting.Outcome != "failed" || claimRun != "Done. Clicked link \"Blue hoodie\". I didn't add anything to your cart." || addRun != "I added the blue hoodie to the cart.")
                                         throw new Exception("A cart claim went wrong: " + cartRun + " / " + cartActs + " / " + claimRun + " / " + addRun);
                                     checks.Add("PASS finished pages: a step that opens a new screen with nothing left to fill in asks her whether the job is done before she opens anything else; a form with empty boxes doesn't; she never says she added something to the cart unless a step did; a search job gets pointed at an empty search box, and is spotted as done once the page title shows its words");
                                     Sight paySight = new Sight { Window = new IntPtr(7), Title = "Payment - SkyHop", Program = "chrome" };
@@ -28038,7 +28046,7 @@ namespace CapriDesktop
                                 string shortBrief = Computer.Brief("do lots", manySteps.GetRange(0, 3), new Sight { Title = "Notepad", Program = "Notepad" });
                                 if (longBrief.IndexOf("Already done, don't repeat these unless the job says to (the last 6 of 8):\n3. step 3\n", StringComparison.Ordinal) < 0 || longBrief.IndexOf("\n2. step 2", StringComparison.Ordinal) >= 0 || longBrief.IndexOf("\n8. step 8", StringComparison.Ordinal) < 0 || shortBrief.IndexOf("Already done, don't repeat these unless the job says to:\n1. step 1\n2. step 2\n3. step 3", StringComparison.Ordinal) < 0)
                                     throw new Exception("The brief didn't keep just the last 6 steps: " + longBrief);
-                                checks.Add("PASS stuck jobs: after 2 steps that change nothing on screen she's told to try another way and keeps going until she calls done (no cap, Esc is their stop), a job whose screen keeps changing runs on, and the brief lists only her last 6 steps");
+                                checks.Add("PASS stuck jobs: unchanged-screen retries are bounded, changing screens can make forward progress, and the brief keeps recent steps with compact earlier history");
                                 System.Collections.Generic.List<Point> cursorLong = Computer.Path(new Point(100, 100), new Point(1300, 700), 7);
                                 System.Collections.Generic.List<Point> cursorShort = Computer.Path(new Point(400, 400), new Point(460, 420), 7);
                                 double cursorLength = Math.Sqrt(1200.0 * 1200 + 600.0 * 600), cursorBend = 0, cursorPast = 0;
