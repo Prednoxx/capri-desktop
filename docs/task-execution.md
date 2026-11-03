@@ -42,6 +42,8 @@ The second repository, [mochiiwuff/capri-desktop](https://github.com/mochiiwuff/
 
 ## Tests
 
+[Results for this build](test-results.md): 784 Windows checks passed, with no failures or skipped checks. The suite lists 39 manual validation limits.
+
 Windows build and full smoke suite:
 
 ```powershell
