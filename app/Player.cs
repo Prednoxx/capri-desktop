@@ -41,6 +41,7 @@ namespace CapriDesktop
         internal bool CanPlay = true;
         internal bool CanPause = true;
         internal bool CanToggle = true;
+        internal bool? Shuffling;
         // Windows' own session for it, or null for one made up in a test.
         internal object Session;
 
@@ -79,6 +80,8 @@ namespace CapriDesktop
         internal static Func<Tune> Spotify = ReadSpotify;
         // Sends previous, next, play, pause, seek:<seconds>, like or unlike to the app playing the tune. True when it went through.
         internal static Func<Tune, string, bool> Send = SendToSession;
+        // Named-app requests must not fall back to media keys targeting a different app.
+        internal static Func<Tune, string, bool> SendOnly = SendToTarget;
         // Brings a window to the front. Tests swap it out.
         internal static Func<IntPtr, bool> Bring = Hands.Front;
         // Whether Spotify's own heart is filled for the song playing in it, read without pressing anything; null when it can't
@@ -237,6 +240,7 @@ namespace CapriDesktop
             {
                 tune.Changing = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Changing;
                 tune.Playing = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing || tune.Changing;
+                tune.Shuffling = info.IsShuffleActive;
                 Windows.Media.MediaPlaybackType? kind = info.PlaybackType;
                 tune.Music = kind.HasValue && kind.Value == Windows.Media.MediaPlaybackType.Music;
                 tune.Video = kind.HasValue && kind.Value == Windows.Media.MediaPlaybackType.Video;
@@ -276,9 +280,15 @@ namespace CapriDesktop
             finally { Pressed(); }
         }
 
-        private static bool SendNow(Tune tune, string what)
+        private static bool SendToTarget(Tune tune, string what)
         {
-            if (what == "like" || what == "unlike") return LikeOnSpotify(what == "like");
+            try { return SendNow(tune, what, false); }
+            finally { Pressed(); }
+        }
+
+        private static bool SendNow(Tune tune, string what, bool fallback = true)
+        {
+            if (what == "like" || what == "unlike") return fallback && LikeOnSpotify(what == "like");
             GlobalSystemMediaTransportControlsSession session = tune == null ? null : tune.Session as GlobalSystemMediaTransportControlsSession;
             if (session != null)
             {
@@ -286,9 +296,10 @@ namespace CapriDesktop
                 {
                     Windows.Foundation.IAsyncOperation<bool> asked = null;
                     if (what == "previous") asked = session.TrySkipPreviousAsync();
+                    else if (what == "shuffle") asked = session.TryChangeShuffleActiveAsync(true);
                     else if (what == "next") asked = session.TrySkipNextAsync();
-                    else if (what == "play") asked = tune.CanPlay || !tune.CanToggle ? session.TryPlayAsync() : session.TryTogglePlayPauseAsync();
-                    else if (what == "pause") asked = tune.CanPause || !tune.CanToggle ? session.TryPauseAsync() : session.TryTogglePlayPauseAsync();
+                    else if (what == "play") asked = !fallback || tune.CanPlay || !tune.CanToggle ? session.TryPlayAsync() : session.TryTogglePlayPauseAsync();
+                    else if (what == "pause") asked = !fallback || tune.CanPause || !tune.CanToggle ? session.TryPauseAsync() : session.TryTogglePlayPauseAsync();
                     else if (what.StartsWith("seek:", StringComparison.Ordinal))
                     {
                         double seconds;
@@ -303,6 +314,7 @@ namespace CapriDesktop
                 }
                 catch (Exception) { }
             }
+            if (!fallback) return false;
             // An app that won't take it from its session still hears the media keys, which go to the app Windows picked.
             byte key = what == "previous" ? (byte)0xB1 : what == "next" ? (byte)0xB0 : what == "play" || what == "pause" ? (byte)0xB3 : (byte)0;
             if (key == 0) return false;

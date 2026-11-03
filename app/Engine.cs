@@ -153,7 +153,7 @@ namespace CapriDesktop
 
         internal void KeepCpu()
         {
-            try { if (Directory.Exists(Folder)) File.WriteAllText(CpuMark, "The graphics card garbled replies, so the brain runs on the CPU. Delete this file to try the graphics card again.\n"); }
+            try { if (Directory.Exists(Folder)) File.WriteAllText(CpuMark, "A model reply failed the repetitive/invalid-text check, so automatic fallback selected the CPU. This does not establish a graphics-card fault. Delete this file to try GPU inference again.\n"); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }

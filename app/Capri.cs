@@ -4525,6 +4525,7 @@ namespace CapriDesktop
             // SECURITY: a toggle they switched off holds the call and she asks first; their yes runs it (ResumeJob).
             string asked = Security.Gate(tool, args);
             if (asked != null) return asked;
+            Brain.Transcribe(null, "Starting tool: " + tool, false);
             // With Use your mouse and keyboard for jobs off, her quick tools stay quick instead of taking the mouse.
             string task = preferences.QuickHands || args == null || brain.Model == null || !Security.On(Security.Mouse) ? null : CursorJob(tool, args);
             bool mouse = task != null || tool == "use_computer";
@@ -4560,6 +4561,7 @@ namespace CapriDesktop
 
         internal static string CursorJob(string tool, ToolArguments args)
         {
+            if (tool == "play_music" && args.App == "apple_music") return null;
             if (tool == "play_music" && !string.IsNullOrWhiteSpace(args.Song))
             {
                 string song = args.Song.Trim();
@@ -7811,7 +7813,7 @@ namespace CapriDesktop
                 Post(delegate { if (job == running && preferences.Motion && !hidden) takeover.Follow(window, name, bounds, preferences.Size / 240f); });
             };
             running.Busy = delegate(string what) { Post(delegate { taskPanel.Busy(running, what); }); };
-            running.Stepped = delegate(JobStep step) { Post(delegate { taskPanel.Add(running, step); }); if (step.Finished) AgentStep(running); };
+            running.Stepped = delegate(JobStep step) { Brain.Transcribe(null, (step.Finished ? "Step result: " : "Starting step: ") + Brain.Redacted(Computer.Mask(step.Label ?? "")) + (step.Failed ? " [failed]" : ""), false); Post(delegate { taskPanel.Add(running, step); }); if (step.Finished) AgentStep(running); };
             Computer.PlacePointer(PointerHome());
             Post(delegate { JobOn(running); });
             string result = null;
@@ -23810,6 +23812,8 @@ namespace CapriDesktop
             Section(checks, "SmokeTips", delegate { mainframe.SmokeTips(checks, Path.Combine(output, "tips")); });
             Section(checks, "SmokeFiles", delegate { SmokeFiles(checks); });
             Section(checks, "SmokeRequests", delegate { SmokeRequests(checks, Path.Combine(output, "request-checks")); });
+            Section(checks, "SmokeMusicApps", delegate { Hands.SmokeMusicApps(checks); });
+            Section(checks, "SmokeRequestReceipts", delegate { SmokeRequestReceipts(checks, Path.Combine(output, "receipt-checks")); });
             Section(checks, "SmokeCare", delegate { SmokeCare(checks); });
             Section(checks, "SmokeClips", delegate { SmokeClips(checks); });
             Section(checks, "SmokeClipOptions", delegate { SmokeClipOptions(checks); });

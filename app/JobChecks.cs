@@ -6,6 +6,26 @@ namespace CapriDesktop
 {
     internal partial class Companion
     {
+        internal static void SmokeRequestReceipts(List<string> checks, string folder)
+        {
+            string path = Brain.TranscriptPath; bool keeping = Brain.Keeping;
+            try
+            {
+                Brain.TranscriptPath = folder; Brain.Keeping = true;
+                string request = "open Apple Music and play something random";
+                try { new Brain().Ask(request); } catch (BrainException) { }
+                Brain.Received("use api_key=fixture-secret-token");
+                string day = System.IO.Path.Combine(folder, DateTime.Now.ToString("yyyy-MM-dd") + ".md");
+                string receipt = System.IO.File.ReadAllText(day);
+                if (!receipt.Contains("Request received: " + request) || receipt.Contains("fixture-secret-token") || !receipt.Contains("api_key=[redacted]") || System.IO.File.Exists(System.IO.Path.Combine(folder, "unfolded.txt"))) throw new Exception("A failed request lost its receipt, exposed a key or entered long-term memory.");
+                Brain.Received("(You glanced at their screen)");
+                Brain.Keeping = false; Brain.Received("not retained");
+                if (System.IO.File.ReadAllText(day) != receipt) throw new Exception("Receipt logging ignored transcript settings or retained an ambient glance.");
+                checks.Add("PASS request text is saved before an offline failure, respects transcript settings and stays out of the memory-fold queue");
+            }
+            finally { Brain.TranscriptPath = path; Brain.Keeping = keeping; }
+        }
+
         private static void SmokeJobSafety(List<string> checks)
         {
             Func<Sight> lookWas = Computer.Look, glimpseWas = Computer.Glimpse;

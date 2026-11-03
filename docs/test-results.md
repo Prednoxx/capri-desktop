@@ -1,5 +1,13 @@
 # Test results
 
+## November 3 music routing follow-up — 0.8.0.2
+
+The Windows app and installer build successfully. Focused checks report 28 PASS, 4 LIMIT, and no failures across music routing, existing requests, task safety and incoming-request receipts. They load the assembly without starting Capri's UI and use stand-ins for app launches, playback and input. Installer extraction is checked against the built executable.
+
+The full GUI smoke suite was not rerun for this follow-up because the desktop app was explicitly stopped. Live Apple Music sign-in, queue availability and shuffle behavior remain untested. The earlier full-suite results below apply to their stated builds, not this follow-up. See [music routing](music-routing.md).
+
+## Earlier checks
+
 Build 0.8.0.1, Windows, November 2, 2026.
 
 | Check | Result |

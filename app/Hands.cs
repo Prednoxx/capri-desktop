@@ -394,7 +394,7 @@ namespace CapriDesktop
                         case "unmute": return "unmute " + sounding;
                         default: return "check how loud " + sounding + " is";
                     }
-                case "play_music": return "play " + Plain(a.Song, "some music") + (a.App == "spotify" ? " on Spotify" : a.App == "youtube" ? " on YouTube" : "");
+                case "play_music": return "play " + Plain(a.Song, "some music") + (a.App == "spotify" ? " on Spotify" : a.App == "youtube" ? " on YouTube" : a.App == "apple_music" ? " on Apple Music" : "");
                 case "shortcut":
                     switch (a.Name)
                     {
@@ -476,7 +476,7 @@ namespace CapriDesktop
         internal OpenWindow(IntPtr handle, string title, string program) { Handle = handle; Title = title; Program = program; }
     }
 
-    internal static class Hands
+    internal static partial class Hands
     {
         internal const string SpokenName = @"(?:\b[ck]app?r(?:i|ee|ie|y)\b|\b(?:kopri|recovery|капри|كابري)\b|(?<![\p{L}\p{M}\p{N}_])कैप्री(?![\p{L}\p{M}\p{N}_])|カプリ|卡普里|카프리)";
         internal static bool HeardName(string words) { return Regex.IsMatch(words ?? "", SpokenName, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant); }
@@ -560,7 +560,7 @@ namespace CapriDesktop
         private const string Handing =
             "You are the hands of Capri, a desktop companion on the user's Windows PC. You don't chat.\n" +
             "Act only on their latest request. Earlier messages are context for names, not commands to repeat. Call one tool for each thing they ask for, however many there are (open Discord, Spotify and Steam is three open_app calls): open an app, game or website, search a site, play music, control media or volume, check the current song, switch to, minimize, maximize, restore, snap, move, resize or close an app's window, or look at their screen when asked about it. Use the names they gave.\n" +
-            "For music, including open Spotify and play a song or playlist, always call play_music once. It opens the music directly; don't turn it into a clicking job or call media play_pause afterwards.\n" +
+            "For music, including open Spotify or Apple Music and play requests, call play_music once and preserve the app they named. For random music on Apple Music use app apple_music and song something random; this shuffles its existing queue, so don't choose a named soundtrack song instead. Don't turn music into a clicking job or call media play_pause afterwards.\n" +
             "Suggestions to do something, like let's watch YouTube or we should open Spotify, are requests to do it. Answering questions on their screen is a normal use_computer job.\n" +
             "If the job needs clicking, typing or more than one step, like opening an app and then searching, going somewhere or making something in it, call use_computer once with the whole job in their words.\n" +
             "You play games on their PC yourself with their mouse and keyboard, so when they want you to play a game, or say let's play, in any language, that's a job: call open_app if it isn't open yet, or use_computer once it's open or there's more to do.\n" +
@@ -645,6 +645,7 @@ namespace CapriDesktop
         // Set phrases a strong brain still lets her take straight away, because there's nothing to work out.
         internal static bool Instant(string tool, ToolArguments args = null)
         {
+            if (tool == "play_music" && args != null && args.App == "apple_music") return true;
 #if !CROSS
             // Known websites and file names need no planner to reinterpret them (john_sandevistan, B88).
             if (tool == "website_nickname" || tool == "find_file" || tool == "open_website" && args != null && string.IsNullOrWhiteSpace(args.Search) && Websites != null && Websites.Nickname(args.Site) != null) return true;
@@ -705,8 +706,8 @@ namespace CapriDesktop
               "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"description\":\"What to do\",\"enum\":[\"play_pause\",\"next\",\"previous\",\"volume_up\",\"volume_down\",\"volume_set\",\"mute\",\"unmute\",\"now_playing\",\"volume_now\"]},\"level\":{\"type\":\"string\",\"description\":\"For volume_set, the volume from 0 to 100. For volume_up or volume_down, how many percent to change it, only if they said\"}},\"required\":[\"action\"]}", "control your music and your PC's volume", "play, pause, skip and set the volume" },
             { "look_at_screen", "Take a screenshot of their screen and look at it right now: what they're doing, playing or showing you. Use it whenever they ask you to check, look at or see their screen, or ask what something on it is. You can always look, so never say you can't see their screen." + LookingAt,
               "{\"type\":\"object\",\"properties\":{\"focus\":{\"type\":\"string\",\"description\":\"What to look at, if they said\"}" + LookPlace + "}}", "look at your screen", "look at their screen" },
-            { "play_music", "Play a song, playlist, album or artist they name, on Spotify or YouTube, including open Spotify and play requests. Only for things to listen to: a game, match or board is never this, even when they say play. Use this instead of a clicking job. For their liked songs, use kind playlist and song Liked Songs. For their own named playlist, keep my before its name so it searches Spotify itself instead of choosing a public playlist URI with that name. If they leave the pick to you, pick a track from the Cyberpunk 2077 or Edgerunners soundtrack.",
-              "{\"type\":\"object\",\"properties\":{\"song\":{\"type\":\"string\",\"description\":\"What to play, like a song and its artist or a playlist's name\"},\"kind\":{\"type\":\"string\",\"description\":\"What it is\",\"enum\":[\"song\",\"playlist\",\"album\",\"artist\"]},\"app\":{\"type\":\"string\",\"description\":\"Where to play it, if they said\",\"enum\":[\"spotify\",\"youtube\"]}},\"required\":[\"song\"]}", "play songs, playlists, albums and artists on Spotify or YouTube", "play songs on Spotify or YouTube" },
+            { "play_music", "Play music on the app they named. Spotify and YouTube support named songs, playlists, albums and artists. Apple Music on Windows supports random music from its existing queue: use app apple_music and song something random. Its named-track selection is not supported here; don't substitute another service or a cursor job. Only for things to listen to: a game, match or board is never music. For their liked songs on Spotify, use kind playlist and song Liked Songs. For their own named Spotify playlist, keep my before its name. If no app or song is named, pick a Cyberpunk 2077 or Edgerunners track.",
+              "{\"type\":\"object\",\"properties\":{\"song\":{\"type\":\"string\",\"description\":\"What to play; for random music on Apple Music use something random\"},\"kind\":{\"type\":\"string\",\"description\":\"What it is\",\"enum\":[\"song\",\"playlist\",\"album\",\"artist\"]},\"app\":{\"type\":\"string\",\"description\":\"The music app they named; preserve it\",\"enum\":[\"spotify\",\"youtube\",\"apple_music\"]}},\"required\":[\"song\"]}", "play music on Spotify, YouTube or Apple Music", "play music on the app they named" },
             { "app_window", "Switch to, minimize or close an app or game that's open on their PC, found by its name or a word in its window's title. Naming a site closes that browser tab." + Arranging,
               "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"The app's name or a word from its window's title, or the site in a browser tab\"},\"action\":{\"type\":\"string\",\"description\":\"What to do\",\"enum\":[\"switch_to\",\"minimize\",\"maximize\",\"restore\",\"close\",\"snap_left\",\"snap_right\",\"snap_top\",\"snap_bottom\",\"move_to_screen\",\"move\",\"resize\",\"pin_on_top\",\"unpin\"]}" + Placing + "},\"required\":[\"name\",\"action\"]}",
               "switch to, minimize, maximize, snap, move, resize or close your apps' windows and browser tabs, on any of your monitors", "switch to, minimize, maximize, snap, move, resize or close their windows" },
@@ -2849,7 +2850,7 @@ namespace CapriDesktop
                 if (spotify && (loud == "volume_up" || loud == "volume_down")) args.App = "spotify";
                 return true;
             }
-            Match found = Regex.Match(text, @"^(?:open|launch|start|go to|fire up|load up)\s+(spotify|youtube)\s*(?:,|and|&)?\s*(?:then\s+)?(?:play|shuffle|put on|blast)\s+(.+)$", RegexOptions.IgnoreCase);
+            Match found = Regex.Match(text, @"^(?:open|launch|start|go to|fire up|load up)\s+(?:(?:the|my)\s+)?(spotify|youtube|apple\s*music)(?:\s+app)?\s*(?:,|and|&)?\s*(?:then\s+)?(?:play|shuffle|put on|blast)\s+(.+)$", RegexOptions.IgnoreCase);
             if (found.Success) text = "play " + found.Groups[2].Value + " on " + found.Groups[1].Value;
             if (Regex.IsMatch(text, @"\b(and|then|but)\s+(open|launch|play|close|quit|pause|don't|do not)\b", RegexOptions.IgnoreCase)) return false;
             ToolArguments website = WebsiteRequest(text);
@@ -2873,7 +2874,7 @@ namespace CapriDesktop
             found = Regex.Match(text, @"^(?:google|look up)\s+(.+)$", RegexOptions.IgnoreCase);
             if (found.Success && !Regex.IsMatch(found.Groups[1].Value, @"^(it|this|that|something|stuff|for me)$", RegexOptions.IgnoreCase)) { tool = "open_website"; args.Site = "google"; args.Search = found.Groups[1].Value.Trim(); return true; }
             if (Regex.IsMatch(text, LookupWords, RegexOptions.IgnoreCase) && !Regex.IsMatch(Regex.Replace(text, @"\bnear me\b", ""), @"\b(my|your|you|me|i)\b", RegexOptions.IgnoreCase)) { tool = "open_website"; args.Site = "google"; args.Search = text; return true; }
-            found = Regex.Match(text, @"^(?:play|shuffle|put on|blast)\s+(.+?)(\s+on\s+(spotify|youtube))?$", RegexOptions.IgnoreCase);
+            found = Regex.Match(text, @"^(?:play|shuffle|put on|blast)\s+(.+?)(\s+(?:on|in|using|through)\s+(spotify|youtube|apple\s*music))?$", RegexOptions.IgnoreCase);
             if (found.Success)
             {
                 string target = found.Groups[1].Value.Trim();
@@ -2884,8 +2885,8 @@ namespace CapriDesktop
                 if (Regex.IsMatch(target, @"^(with|along|around|a game|games?\b|dead|nice|fair|it\b|me\b|us\b|together|this$|that$|((a|any|some|random) )?playlists?$)", RegexOptions.IgnoreCase)) return false;
                 // "play the wasd minigame" is a game, not a song to search Spotify for (a tester, 30 Oct), and so is a game that's open.
                 if (!found.Groups[3].Success && (Playable.IsMatch(target) || PlainGame.IsMatch(target) || Nickname(target) != null || Showing(target))) return false;
-                if (found.Groups[3].Success) args.App = found.Groups[3].Value.ToLowerInvariant();
-                if (Regex.IsMatch(target, @"^(music$|some music$|((a|any|some|random) )?(song|track|tune|music)s?$|(something|anything)\b(?!\s+by\s))", RegexOptions.IgnoreCase)) { tool = "play_music"; args.Kind = "song"; args.Song = Pick(); return true; }
+                if (found.Groups[3].Success) args.App = Regex.IsMatch(found.Groups[3].Value, @"^apple\s*music$", RegexOptions.IgnoreCase) ? "apple_music" : found.Groups[3].Value.ToLowerInvariant();
+                if (Regex.IsMatch(target, @"^(music$|some music$|(?:(?:a|any|some|random)\s+){0,2}(song|track|tune|music)s?$|(something|anything)\b(?!\s+by\s))", RegexOptions.IgnoreCase)) { tool = "play_music"; args.Kind = "song"; args.Song = args.App == "apple_music" ? "something random" : Pick(); return true; }
                 Match kind = Regex.Match(target, @"^(?:(?:the|my|your)\s+)?(.+?)\s+(playlist|album)$", RegexOptions.IgnoreCase);
                 Match first = Regex.Match(target, @"^(?:the\s+)?(playlist|album)\s+(.+)$", RegexOptions.IgnoreCase);
                 Match by = Regex.Match(target, @"^(?:some(?:thing)?|anything|(?:(?:some|a|any)\s+)?(?:songs?|music|tracks?))\s+by\s+(.+)$", RegexOptions.IgnoreCase);
@@ -3220,7 +3221,7 @@ namespace CapriDesktop
             if (tool == "nap") return string.IsNullOrEmpty(args.Action) || args.Action == "sleep" || args.Action == "wake";
             if (tool == "move_yourself") return Regex.IsMatch(args.Action ?? "", @"\A(come_here|other_screen|sit|sit_on|lie_down|sit_up|stand_up|walk_around|wander|hang|ride_cursor|hop_off|hide|show|move_mainframe)\z") && (args.Action != "sit_on" || Named(args.Window));
             if (tool == "animate") return Regex.IsMatch(args.Name ?? "", @"\A(idle|glitch|grin|blink|dance|stop_dancing)\z");
-            return tool == "play_music" && Named(args.Song) && (string.IsNullOrEmpty(args.Kind) || Regex.IsMatch(args.Kind, @"\A(song|playlist|album|artist)\z")) && (string.IsNullOrEmpty(args.App) || args.App == "spotify" || args.App == "youtube");
+            return tool == "play_music" && Named(args.Song) && (string.IsNullOrEmpty(args.Kind) || Regex.IsMatch(args.Kind, @"\A(song|playlist|album|artist)\z")) && (string.IsNullOrEmpty(args.App) || args.App == "spotify" || args.App == "youtube" || args.App == "apple_music");
         }
 
         // "Open Discord and Spotify" opens both, so nobody has to ask for each app on its own, and so does "open steam and then
@@ -4364,6 +4365,10 @@ namespace CapriDesktop
         private static string PlayMusic(string song, string app, string kind)
         {
             if (string.IsNullOrWhiteSpace(song)) return "What should I play?";
+            app = (app ?? "").Trim().ToLowerInvariant();
+            if (Regex.IsMatch(app, @"^apple[ _-]*music$")) app = "apple_music";
+            if (app.Length > 0 && app != "spotify" && app != "youtube" && app != "apple_music") return "Couldn't use that music app. I didn't switch to another service.";
+            if (app == "apple_music") return PlayAppleMusic(song, kind);
             song = song.Trim();
             bool ownPlaylist = Regex.IsMatch(song, @"^my\s+", RegexOptions.IgnoreCase) && (kind == "playlist" || Regex.IsMatch(song, @"\s+playlist$", RegexOptions.IgnoreCase));
             if (Regex.IsMatch(song, @"^((what('|\u2019)?s|what is)\s+)?((currently|now)\s+)?playing( now)?$|^(this|that|the current) (song|track)$", RegexOptions.IgnoreCase)) return Playing();

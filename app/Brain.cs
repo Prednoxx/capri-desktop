@@ -961,6 +961,12 @@ namespace CapriDesktop
             Transcribe("Capri", said, FoldsGlances || !(asked ?? "").StartsWith("(You glanced", StringComparison.Ordinal));
         }
 
+        internal static void Received(string text)
+        {
+            if (!string.IsNullOrWhiteSpace(text) && !text.StartsWith("(", StringComparison.Ordinal))
+                Transcribe(null, "Request received: " + Redacted(text), false);
+        }
+
         internal static string Memories()
         {
             string body = Keeping ? MemoriesBody() : "";
@@ -1729,6 +1735,7 @@ namespace CapriDesktop
         internal string Ask(string text, bool followUps, out string followLine)
         {
             followLine = "";
+            Received(text);
             Learn(text);
             int ticket;
             lock (gate) ticket = cancelled;
@@ -2585,7 +2592,7 @@ namespace CapriDesktop
                     if (error.Status == 503 && local.Settle()) return Complete(local.Address, model, messages, tools, calls, parts, limit, ticket, routing, openAiTools, job);
                     garbled = error.Message == Gibberish;
                     if (local.CpuOnly || (!garbled && !Engine.Lost(error.Message))) throw;
-                    lost = garbled ? "The graphics card garbled the brain's reply" : "Graphics card dropped the brain";
+                    lost = garbled ? "The model returned repetitive or invalid text" : "Graphics card dropped the brain";
                 }
                 catch (WebException error)
                 {

@@ -6,6 +6,8 @@
 
 This fork fixes repeated desktop tasks, adds retry limits and keeps completed jobs from starting again. It also updates her preset lines. [Changes and tests](docs/task-execution.md).
 
+Apple Music requests now keep the app you named. Random playback uses its own media session and reports success only after playback is verified. Interrupted requests also leave a local transcript receipt. [Music routing and limits](docs/music-routing.md).
+
 **Bring Capri (back lol) to life as a desktop companion!**<br>
 She sits on your windows, talks back, plays your games and gets into everything.
 
